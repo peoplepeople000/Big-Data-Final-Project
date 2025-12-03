@@ -1,3 +1,5 @@
 .venv
 .env
 last_scroll_id.txt
+data.*
+__pycache__
