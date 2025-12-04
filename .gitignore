@@ -3,3 +3,9 @@
 last_scroll_id.txt
 data.*
 __pycache__
+*.pyc
+*.pyo
+*.pkl
+.ipynb_checkpoints
+.DS_Store
+nyc_join_graph.html
