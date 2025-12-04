@@ -42,3 +42,4 @@ wcwidth==0.2.14
 networkx
 pyvis
 tqdm
+matplotlib

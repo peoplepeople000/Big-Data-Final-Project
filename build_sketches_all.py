@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, Tuple
 
 import pandas as pd
-from tqdm import tqdm  # <<< NEW
+from tqdm import tqdm 
 
 from column_extraction import extract_columns_for_domain
 from joinability_pipeline import build_all_sketches

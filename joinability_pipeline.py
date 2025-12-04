@@ -4,6 +4,7 @@ import itertools
 from typing import Dict, Tuple
 
 import pandas as pd
+from tqdm import tqdm
 
 from lazo_estimator import estimate_js_jc_lazo
 from lazo_sketch import ColumnSketch, ColumnSketcher
@@ -32,8 +33,13 @@ def compute_lazo_joinability(
     """
     rows = []
     items = list(sketches.items())
+    total_pairs = len(items) * (len(items) - 1) // 2
 
-    for (key_a, sketch_a), (key_b, sketch_b) in itertools.combinations(items, 2):
+    # tqdm progress bar provides visibility into the expensive all-pairs scan.
+    iterator = itertools.combinations(items, 2)
+    for (key_a, sketch_a), (key_b, sketch_b) in tqdm(iterator, total=total_pairs, desc="Comparing sketches"):
+        if key_a[0] == key_b[0]:
+            continue
         js, jc_ab, jc_ba = estimate_js_jc_lazo(sketch_a, sketch_b)
 
         if (js >= js_threshold) or (jc_ab >= jc_threshold) or (jc_ba >= jc_threshold):

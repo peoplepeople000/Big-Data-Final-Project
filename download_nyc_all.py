@@ -22,7 +22,7 @@ def main():
 
     # Optional: limit per run so you don't overload the API or your machine
     # Set this to None if you really want to attempt all in one go.
-    max_per_run = 200
+    max_per_run = 600
 
     num_downloaded = 0
     for dsid in ids:
