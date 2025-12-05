@@ -199,9 +199,20 @@ class Domain:
                 # If the file is not a list of dicts, wrap to avoid crash.
             if not isinstance(data, list):
                 data = []
-                return pd.DataFrame.from_records(data)
+            return pd.DataFrame.from_records(data)
         else: # If the file is not downloaded, fetch it via the api
-            return pd.DataFrame.from_dict(self.client.get(dataset_id))
+            try:
+                table = self.client.get(dataset_id)
+            except requests.exceptions.HTTPError as e:
+                self.log.error(f"{dataset_id}: Socrata error — {e}")
+                return pd.DataFrame([]) # return clean empty DataFrame
+            except Exception as e:
+                # broad fallback so unexpected errors never crash the loader
+                self.log.error(f"{dataset_id}: Unexpected error — {e}")
+                return pd.DataFrame([])
+            if not isinstance(table, list):
+                table = []
+            return pd.DataFrame.from_records(table)
         
     def extract_column_from_dataset(self, dataset_id) -> Dict[Tuple[str, str], pd.Series]: 
         df = self.load_dataset_to_df(dataset_id)
