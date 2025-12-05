@@ -2,6 +2,8 @@ import re
 import requests
 import json
 import logging
+import pandas as pd
+from typing import Dict, Tuple, Generator
 from pathlib import Path
 from sodapy import Socrata
 
@@ -11,7 +13,7 @@ class Domain:
         self.sanitized = re.sub(r"[^a-zA-Z0-9._-]", "_", domain)
         self.views = f"https://{domain}/views.json"
         self.client = Socrata(domain, token, timeout=timeout)
-        self.identifiers_file = None
+        self.ids = None
         self.base = Path(self.sanitized)
         self.datadir = self.base / "data"
         self.schemadir = self.base / "schema"
@@ -55,39 +57,43 @@ class Domain:
         return data.get("count", -1) # Error (no count) represented by -1 rather than 0
     
     def city_datasets_ids(self):
-        datasets = self.client.datasets()
-        ids = [d["resource"]["id"] for d in datasets]
-        return ids
+        if not self.ids:
+            datasets = self.client.datasets()
+            self.ids = [d["resource"]["id"] for d in datasets]
+        return self.ids
     
     def write_dataset_ids_to_file(self, filepath=None):
-        ids = self.city_datasets_ids()
+        self.ids = self.city_datasets_ids()
         if filepath is None:
             filepath = f"{self.sanitized}_ids.txt"
         full_path = self.base / filepath
         with full_path.open("w", encoding="utf-8") as f:
-            for dataset_id in ids:
+            for dataset_id in self.ids:
                 f.write(dataset_id + "\n")
-
-        self.identifiers_file = full_path
         return full_path
-    
+
     def _set_up_ids(self):
-        if self.identifiers_file is None:
-            self.identifiers_file = self.base / f"{self.sanitized}_ids.txt"
-        if not self.identifiers_file.exists():
-            self.write_dataset_ids_to_file()
-        return True
+        if self.ids:
+            return self.ids
+        else:
+            identifiers_file = self.base / f"{self.sanitized}_ids.txt"
+            if identifiers_file.exists():
+                with identifiers_file.open() as f:
+                    self.ids = []
+                    for line in f:
+                        dataset_id = line.strip()
+                        yield dataset_id
+            else:
+                self.city_datasets_ids()
+        return self.ids
 
     def download_all_raw_dataset(self):
-        self._set_up_ids()
-        with self.identifiers_file.open() as f:
-            for line in f:
-                dataset_id = line.strip()
-                outfile = f"data_{dataset_id}.json"
-                outpath = self.datadir / outfile
-                if outpath.exists():
-                    continue
-                self.download_raw_dataset(dataset_id)
+        for dataset_id in self._set_up_ids():
+            outfile = f"data_{dataset_id}.json"
+            outpath = self.datadir / outfile
+            if outpath.exists():
+                continue
+            self.download_raw_dataset(dataset_id)
     
     def download_raw_dataset(self, dataset_id, outfile=None):
         url = f"https://{self.domain}/resource/{dataset_id}.json"
@@ -129,18 +135,15 @@ class Domain:
         outpath = self.datadir / outfile
         outpath.write_bytes(resp.content)
 
-    def fetch_all_schema(self):
-        self._set_up_ids()
-        with self.identifiers_file.open() as f:
-            for line in f:
-                dataset_id = line.strip()
-                outfile = f"schema_{dataset_id}.txt"
-                outpath = self.schemadir / outfile
-                if outpath.exists():
-                    continue
-                self.fetch_schema(dataset_id)
+    def download_all_schema(self):
+        for dataset_id in self._set_up_ids():
+            outfile = f"schema_{dataset_id}.txt"
+            outpath = self.schemadir / outfile
+            if outpath.exists():
+                continue
+            self.download_schema(dataset_id)
 
-    def fetch_schema(self, dataset_id, outfile=None):
+    def download_schema(self, dataset_id, outfile=None):
         if outfile is None:
             outfile = f"schema_{dataset_id}.txt"
         data_file = self.datadir / f"{dataset_id}.json"
@@ -187,6 +190,40 @@ class Domain:
         outpath = self.schemadir / outfile
         outpath.write_text("\n".join(schema), encoding="utf-8")
         return outpath
+    
+    def load_dataset_to_df(self, dataset_id):
+        data_path = (self.datadir / f"{dataset_id}.json")
+        if data_path.exists():
+            with data_path.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+                # If the file is not a list of dicts, wrap to avoid crash.
+            if not isinstance(data, list):
+                data = []
+                return pd.DataFrame.from_records(data)
+        else: # If the file is not downloaded, fetch it via the api
+            return pd.DataFrame.from_dict(self.client.get(dataset_id))
+        
+    def extract_column_from_dataset(self, dataset_id) -> Dict[Tuple[str, str], pd.Series]: 
+        df = self.load_dataset_to_df(dataset_id)
+        if df.empty:
+            return None
+        str_cols = df.select_dtypes(include=["object", "string"]).columns.tolist()
+        num_cols = df.select_dtypes(include=["number", "float", "int"]).columns.tolist()
+        cols = list(dict.fromkeys(str_cols + num_cols))  # preserve order, avoid duplicates
+        column_dict = {}
+        for col in cols:
+            series = df[col]
+            column_dict[(dataset_id, col)] = series
+        return column_dict
+
+    def extract_columns_for_domain(self) -> Generator[Dict[Tuple[str, str], pd.Series]]:
+        """
+        Read all downloaded JSON files for a domain and return a dict:
+            { (dataset_id, column_name): Series }
+        Only string-like and numeric columns are kept.
+        """
+        for dataset_id in self._set_up_ids():
+            yield self.extract_column_from_dataset(dataset_id)
 
     def _ensure_data_dir(self):
         self.datadir.mkdir(exist_ok=True)
