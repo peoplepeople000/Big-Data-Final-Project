@@ -114,8 +114,8 @@ def main():
     print(f"Loaded {len(sketches)} column sketches.")
 
     # Optional: limit number of columns for a first test (to keep runtime manageable)
-    max_columns = 20000  # adjust as needed (orignally 200)
-    if len(sketches) > max_columns:
+    max_columns = None  # adjust as needed (orignally 200)
+    if max_columns is not None and len(sketches) > max_columns:
         print(f"Subsampling sketches down to {max_columns} columns for this run.")
         items = list(sketches.items())[:max_columns]
         sketches = dict(items)

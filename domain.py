@@ -227,7 +227,7 @@ class Domain:
             column_dict[(dataset_id, col)] = series
         return column_dict
 
-    def extract_columns_for_domain(self) -> Generator[Dict[Tuple[str, str], pd.Series]]:
+    def extract_columns_for_domain(self) -> Generator[Dict[Tuple[str, str], pd.Series], None, None]:
         """
         Read all downloaded JSON files for a domain and return a dict:
             { (dataset_id, column_name): Series }
