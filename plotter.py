@@ -32,6 +32,7 @@ class All_Domain_Plotter:
             plt.imshow(wc, interpolation="bilinear")
             plt.axis("off")
             if save_name:
+                self._ensure_plots()
                 plt.savefig(self.plots / save_name, dpi=300, bbox_inches='tight')
                 print(f"Tag cloud saved to {self.plots / save_name}")
             else:
@@ -71,7 +72,9 @@ class All_Domain_Plotter:
         x_fit = np.linspace(x.min(), x.max(), 200)
         y_fit = 10**(a + b * np.log10(x_fit))
         ax.plot(x_fit, y_fit, linewidth=2, color="red", alpha = 0.5, linestyle='dotted')
+        plt.title('Number of Datasets vs Population', fontsize=16)
         if save_name:
+            self._ensure_plots()
             plt.savefig(self.plots / save_name, dpi=300, bbox_inches='tight')
             print(f"Scatter plot saved to {self.plots / save_name}")
         else:
@@ -132,6 +135,7 @@ class All_Domain_Plotter:
         plt.tight_layout()
         
         if save_name:
+            self._ensure_plots()
             plt.savefig(self.plots / save_name, dpi=300, bbox_inches='tight')
             print(f"Pie chart saved to {self.plots / save_name}")
         else:
@@ -250,6 +254,7 @@ class All_Domain_Plotter:
         plt.tight_layout()
         
         if save_name:
+            self._ensure_plots()
             plt.savefig(self.plots / save_name, dpi=300, bbox_inches='tight')
             print(f"Bar chart saved to {self.plots / save_name}")
         else:
@@ -292,10 +297,11 @@ class All_Domain_Plotter:
         row_file = self.all_domain.base / "aggregated_row_counts.json"
         with open(row_file) as f:
             rows = json.load(f)
-            rows_df = pd.json_normalize(rows)
-            new_rows = rows_df.transpose().rename_axis("No. of Records").rename(columns={0: "Percentage of Total"}).reset_index()
+            rows_df = pd.Series(rows).to_frame("Percentage of Total")
+            new_rows = rows_df.rename_axis("No. of Records").reset_index()
             new_rows["Percentage of Total"] = (new_rows["Percentage of Total"] / new_rows["Percentage of Total"].sum() * 100).round(2)
             new_rows.to_html(self.plots / 'Row_Count_Data.html', index=False)
+            print(f"Table saved to {self.plots / 'Row_Count_Data.html'}")
 
     def data_count_cat(self, top_n=3):
         """
@@ -321,6 +327,9 @@ class All_Domain_Plotter:
                     cats = json.load(f)                
                 top_cats = [cat for cat, _ in list(cats.items())[:top_n]]
             else:
+                top_cats = []
+
+            if not top_cats:
                 top_cats = pd.NA
             
             category_data.append({
@@ -346,7 +355,98 @@ class All_Domain_Plotter:
         self._ensure_plots()
         final_df.to_html(self.plots / 'City_Set_Count_And_Categories.html', index=False)
         print(f"Table saved to {self.plots / 'City_Set_Count_And_Categories.html'}")
-                    
+
+    def bar_graph(self, data, save_name = None):
+        ACT = {
+            "attribute": "aggregated_attribute_counts.json",
+            "download": "aggregated_download_counts.json", 
+            "view": "aggregated_view_counts.json",
+            "sparseness": "aggregated_sparseness_counts.json",
+            "type": "aggregated_column_types.json"
+            }
+        file = ACT.get(data)
+        if not file:
+            print(f"{data} cannot be displayed with a bar graph.")
+            return
+        path = self.all_domain.base / file
+        if path.exists():
+            with open(path) as f:
+                counts = json.load(f)    
+        else:
+            print(f"{path} not found") 
+            return None              
+        caps = data.capitalize()
+        series = pd.Series(counts)
+        ax = series.plot(kind="bar", figsize=(9,6))
+        plt.xlabel(data.capitalize(), fontsize=12)
+        plt.ylabel('Count', fontsize=12)
+        plt.xticks(rotation=45, ha='right')
+        plt.grid(axis='y', alpha=0.3, linestyle='--')
+        
+        # Add value labels on bars
+        for i, v in enumerate(series.values):
+            ax.text(i, v + max(series.values) * 0.01, f'{v:,}', 
+                    ha='center', va='bottom', fontsize=9)
+        
+        plt.tight_layout()
+        plt.title(f'{caps} vs Count', fontsize=16)
+
+        if save_name:
+            self._ensure_plots()
+            plt.savefig(self.plots / save_name, dpi=300, bbox_inches='tight')
+            print(f"Bar chart for {data} saved to {self.plots / save_name}")
+        else:
+            plt.show()
+
+    def publication_age(self, save_name = None):
+        path = self.all_domain.base / "aggregated_publication_age.json"
+        if path.exists():
+            with open(path) as f:
+                counts = json.load(f)
+        else:
+            print(f"{path} not found") 
+            return None           
+        # Prepare data
+        series = pd.Series(counts)
+        series.index = series.index.astype(int)
+        series = series.sort_index()
+        
+        # Create figure
+        fig, ax = plt.subplots(figsize=(14, 6))
+        
+        # Plot line
+        ax.plot(series.index, series.values, linewidth=2.5, 
+                marker='o', markersize=5, color='steelblue', label='Dataset Count')
+        
+        # Add reference lines
+        ax.axvline(x=12, color='red', linestyle='--', alpha=0.5, linewidth=1, label='1 year')
+        ax.axvline(x=24, color='orange', linestyle='--', alpha=0.5, linewidth=1, label='2 years')
+        ax.axvline(x=60, color='green', linestyle='--', alpha=0.5, linewidth=1, label='5 years')
+        
+        # Formatting
+        ax.set_title('Dataset Age Distribution (All Cities)', fontsize=16, fontweight='bold', pad=20)
+        ax.set_xlabel('Age in Months', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Number of Datasets', fontsize=12, fontweight='bold')
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.legend(loc='upper right')
+        
+        # Add value labels for peaks
+        max_idx = series.idxmax()
+        max_val = series.max()
+        ax.annotate(f'Peak: {max_val:,} datasets\nat {max_idx} months',
+                    xy=(max_idx, max_val),
+                    xytext=(max_idx + 10, max_val + max_val * 0.1),
+                    arrowprops=dict(arrowstyle='->', color='red', lw=1.5),
+                    fontsize=10, fontweight='bold')
+        
+        plt.tight_layout()
+        if save_name:
+            self._ensure_plots()
+            plt.savefig(self.plots / save_name, dpi=300, bbox_inches='tight')
+            print(f"Line chart for publication_age saved to {self.plots / save_name}")
+        else:
+            plt.show()
+
     def _ensure_plots(self):
         self.plots.mkdir(exist_ok=True)
         
