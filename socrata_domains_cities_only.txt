@@ -38,3 +38,8 @@ data.stocktonca.gov
 data.cstx.gov
 data.coloradosprings.gov
 data.sfgov.org
+data.fortworthtexas.gov
+data.oxnard.org
+data.baltimorecity.gov
+data.cityofboston.gov
+data.raleighnc.gov

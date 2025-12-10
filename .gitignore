@@ -10,3 +10,4 @@ __pycache__
 .DS_Store
 nyc_join_graph.html
 all_city_data
+nyc_joinability_pairs.csv
