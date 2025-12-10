@@ -1,20 +1,25 @@
-# Big Data Final Project — NYC Open Data Joinability
+# Big Data Final Project - NYC Open Data Joinability
 
 This repo explores the NYC Open Data (Socrata) catalog and builds a LAZO-based joinability graph across datasets. It downloads raw JSON for each dataset, sketches every column with MinHash + HyperLogLog-style cardinality, estimates Jaccard/containment via LAZO, and exports an interactive dataset-level graph.
 
 ## Repository Layout
-- `domain.py` — Socrata helper (per-domain folders, download JSON, fetch schemas, logging).
-- `download_nyc_all.py` — incremental NYC downloader (uses `Domain`), polite rate limiting.
-- `build_sketches_all.py` — extract columns from downloaded JSON and build sketches for each column.
-- `joinability_pipeline.py` — LAZO pairwise JS/containment over column sketches.
-- `join_graph.py` — builds dataset-level graph + pyvis HTML export.
-- `run_join_graph.py` — end-to-end: load sketches, compute joinability, emit HTML graph.
-- `run_joinability_example.py` — small demo over a sampled subset of columns.
-- `column_extraction.py` — JSON ➜ pandas DataFrames ➜ (dataset, column) → Series dict (string/number cols only).
-- `lazo_sketch.py` — ColumnSketch dataclass, MinHash (K=128), lightweight HLL-style cardinality.
-- `lazo_estimator.py` — LAZO JS/JC estimation with error-correction heuristic.
-- `datasets.ipynb` — early exploration: Socrata API usage, domain crawling, domain filtering.
-- `socrata_domains.txt` / `socrata_domains_cities_only.txt` — discovered Socrata portals, filtered to city portals.
+- `domain.py` - Socrata helper (per-domain folders, download JSON, fetch schemas, logging).
+- `all_domain.py` - performs functions from `domain.py` across all domains.
+- `plotter.py` - creates graphs based off of metadata gotten using `domain.py`.
+- `downloader.ipnb` - notebook that when run in order will download all relevant metadata from all domains.
+- `graphics.ipynb` - notebook that allows for simple use of `plotter.py`.
+- `city_pops.csv` - csv containing population data and city names for domains to be used by `graphics.ipynb`.
+- `download_nyc_all.py` - incremental NYC downloader (uses `Domain`), polite rate limiting (redundant).
+- `build_sketches_all.py` - extract columns from downloaded JSON and build sketches for each column.
+- `joinability_pipeline.py` - LAZO pairwise JS/containment over column sketches.
+- `join_graph.py` - builds dataset-level graph + pyvis HTML export.
+- `run_join_graph.py` - end-to-end: load sketches, compute joinability, emit HTML graph.
+- `run_joinability_example.py` - small demo over a sampled subset of columns.
+- `column_extraction.py` - JSON ➜ pandas DataFrames ➜ (dataset, column) → Series dict (string/number cols only).
+- `lazo_sketch.py` - ColumnSketch dataclass, MinHash (K=128), lightweight HLL-style cardinality.
+- `lazo_estimator.py` - LAZO JS/JC estimation with error-correction heuristic.
+- `datasets.ipynb` - early exploration: Socrata API usage, domain crawling, domain filtering.
+- `socrata_domains.txt` / `socrata_domains_cities_only.txt` - discovered Socrata portals, filtered to city portals.
 - Outputs (generated): `data.cityofnewyork.us/data/*.json`, `nyc_column_sketches.pkl`, `nyc_join_graph.html`.
 
 ## Setup
