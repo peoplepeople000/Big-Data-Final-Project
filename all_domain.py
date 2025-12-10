@@ -668,18 +668,12 @@ class All_Domain:
         format_counter = Counter()
         column_type_counter = Counter()
         publication_counter = Counter()
+        update_counter = Counter()
         attribute_counter = Counter()
         view_counter = Counter()
         download_counter = Counter()
         row_counter = Counter()
         sparseness_counter = Counter()
-        
-        total_stats = {
-            'total_datasets': 0,
-            'total_rows': 0,
-            'total_downloads': 0,
-            'total_views': 0
-        }
         
         # Progress bar for aggregation
         pbar = tqdm(self.all_domain, desc="Aggregating summaries", unit="domain")
@@ -709,6 +703,14 @@ class All_Domain:
                     publications = json.load(f)
                     # Convert string keys to int if they're age_months
                     publication_counter.update({int(k): v for k, v in publications.items()})
+
+            # Aggregate update age counts
+            update_file = summary_dir / "last_update.json"
+            if update_file.exists():
+                with open(update_file) as f:
+                    updates = json.load(f)
+                    # Convert string keys to int if they're age_months
+                    update_counter.update({int(k): v for k, v in updates.items()})
             
             # Aggregate categories
             cat_file = summary_dir / "categories.json"
@@ -785,6 +787,7 @@ class All_Domain:
         output = {
             "tag_counts": dict(tag_counter.most_common()),
             "publication_age": dict(sorted(publication_counter.items(), key=lambda x: x[0])),
+            "last_update": dict(sorted(update_counter.items(), key=lambda x: x[0])),
             "categories": dict(category_counter.most_common()),
             "formats": dict(format_counter.most_common()),
             "column_types": dict(column_type_counter.most_common()),

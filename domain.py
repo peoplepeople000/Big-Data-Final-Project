@@ -787,19 +787,53 @@ class Domain:
 
         # Handle missing publicationDate values
         df['age_months'] = ((current_time - df['publicationDate']) / (30.44 * 24 * 3600))
-
-        # Fill NaN values before converting to int
         df['age_months'] = df['age_months'].fillna(-1).astype(int)
 
-        # Now create the counts, optionally filtering out invalid ages
-        age_counts = df[df['age_months'] >= 0]['age_months'].value_counts().reset_index()
-        age_counts.columns = ['age_months', 'count']
-        age_counts = age_counts.sort_values('age_months')
-        # age_counts.to_json(outpath / "publication_age.json", orient='records', indent=2)
-        age_dct = dict(zip(age_counts["age_months"], age_counts["count"]))
+        # Create counts
+        age_counts = df[df['age_months'] >= 0]['age_months'].value_counts()
+
+        # Fill in missing months with 0
+        if len(age_counts) > 0:
+            max_age = age_counts.index.max()
+            min_age = age_counts.index.min()
+            
+            # Create complete range
+            full_range = pd.Series(0, index=range(min_age, max_age + 1))
+            
+            # Update with actual counts
+            full_range.update(age_counts)
+            
+            # Convert to dict
+            age_dct = full_range.to_dict()
+        else:
+            age_dct = {}
+
         with open(outpath / "publication_age.json", "w") as f:
             json.dump(age_dct, f, indent=2)
-        
+
+        # Months since last update
+        df['months_since_update'] = ((current_time - df['updatedAt']) / (30.44 * 24 * 3600))
+        # Fill NaN values before converting to int
+        df['months_since_update'] = df['months_since_update'].fillna(-1).astype(int)
+
+        # Now create the counts, optionally filtering out invalid ages
+        update_counts = df[df['months_since_update'] >= 0]['months_since_update'].value_counts()
+        # Fill in missing months with 0
+        if len(update_counts) > 0:
+            max_update = update_counts.index.max()
+            min_update = update_counts.index.min()
+            # Create complete range
+            update_range = pd.Series(0, index=range(min_update, max_update + 1))
+            # Update with actual counts
+            update_range.update(update_counts)
+            # Convert to dict
+            update_dct = update_range.to_dict()
+        else:
+            update_dct = {}
+
+        with open(outpath / "last_update.json", "w") as f:
+            json.dump(update_dct, f, indent=2)
+
         # Number of attributes (columns) per dataset
         # Handle missing columns (NaN values)
         df['num_attributes'] = df['columns'].apply(lambda x: len(x) if isinstance(x, list) else 0)

@@ -80,18 +80,23 @@ class All_Domain_Plotter:
         else:
             plt.show()
 
-    def plot_format_distribution(self, save_name=None):
+    def plot_format_distribution(self, domain=None, save_name=None):
         """
-        Create a pie chart showing the distribution of dataset formats across all cities.
+        Create a pie chart showing the distribution of dataset formats across all or specific cities.
         
         Args:
             save_path: Optional path to save the figure. If None, displays interactively.
         """
         # Load aggregated format data
         formats_file = self.all_domain.base / "aggregated_formats.json"
+
+        if domain:
+            if domain in [d.domain for d in self.all_domain.all_domain]:
+                formats_file = self.all_domain.parent_dir / domain / "metadata" / "summary" / "formats.json"
+            else: return None
         
         if not formats_file.exists():
-            print("Aggregated formats not found. Run aggregate_summaries() first.")
+            print("Formats not found. Run all_metadata_summaries() and aggregate_summaries() or summarize_metadata() on specific domain.")
             return
         
         with open(formats_file) as f:
@@ -292,9 +297,16 @@ class All_Domain_Plotter:
         
         print(f"\nAll visualizations saved to {self.plots}")
 
-    def row_count(self):
+    def row_count(self, domain=None):
         self._ensure_plots()
         row_file = self.all_domain.base / "aggregated_row_counts.json"
+        if domain:
+            if domain in [d.domain for d in self.all_domain.all_domain]:
+                row_file = self.all_domain.parent_dir / domain / "metadata" / "summary" / "row_buckets.json"
+            else: return None
+        if not row_file.exists():
+            print("Row counts not found. Run all_metadata_summaries() and aggregate_summaries() or summarize_metadata() on specific domain.")
+            return
         with open(row_file) as f:
             rows = json.load(f)
             rows_df = pd.Series(rows).to_frame("Percentage of Total")
@@ -356,19 +368,27 @@ class All_Domain_Plotter:
         final_df.to_html(self.plots / 'City_Set_Count_And_Categories.html', index=False)
         print(f"Table saved to {self.plots / 'City_Set_Count_And_Categories.html'}")
 
-    def bar_graph(self, data, save_name = None):
+    def bar_graph(self, data, domain=None, save_name = None):
         ACT = {
-            "attribute": "aggregated_attribute_counts.json",
-            "download": "aggregated_download_counts.json", 
-            "view": "aggregated_view_counts.json",
-            "sparseness": "aggregated_sparseness_counts.json",
-            "type": "aggregated_column_types.json"
+            "attribute": ("aggregated_attribute_counts.json", "attribute_counts.json"),
+            "download": ("aggregated_download_counts.json", "download_buckets.json"), 
+            "view": ("aggregated_view_counts.json", "view_buckets.json"),
+            "sparseness": ("aggregated_sparseness_counts.json", "table_sparseness.json"),
+            "type": ("aggregated_column_types.json", "column_types.json")
             }
         file = ACT.get(data)
         if not file:
             print(f"{data} cannot be displayed with a bar graph.")
             return
-        path = self.all_domain.base / file
+        if domain:
+            if domain in [d.domain for d in self.all_domain.all_domain]:
+                path = self.all_domain.parent_dir / domain / "metadata" / "summary" / file[1]
+            else: return None
+        else:
+            path = self.all_domain.base / file[0]
+        if not path.exists():
+            print("Desired summary file not found. Run all_metadata_summaries() and aggregate_summaries() or summarize_metadata() on specific domain.")
+            return
         if path.exists():
             with open(path) as f:
                 counts = json.load(f)    
@@ -398,13 +418,26 @@ class All_Domain_Plotter:
         else:
             plt.show()
 
-    def publication_age(self, save_name = None):
-        path = self.all_domain.base / "aggregated_publication_age.json"
+    def line_graph(self, data, domain=None, save_name = None):
+        ACT = {
+            "publication": ("aggregated_publication_age.json", "publication_age.json"),
+            "update": ("aggregated_last_update.json", "last_update.json"), 
+            }
+        file = ACT.get(data)
+        if not file:
+            print(f"{data} cannot be displayed with a bar graph.")
+            return
+        if domain:
+            if domain in [d.domain for d in self.all_domain.all_domain]:
+                path = self.all_domain.parent_dir / domain / "metadata" / "summary" / file[1]
+            else: return None
+        else:
+            path = self.all_domain.base / file[0]
         if path.exists():
             with open(path) as f:
                 counts = json.load(f)
         else:
-            print(f"{path} not found") 
+            print("Desired file not found. Run all_metadata_summaries() and aggregate_summaries() or summarize_metadata() on specific domain.")
             return None           
         # Prepare data
         series = pd.Series(counts)
@@ -424,7 +457,7 @@ class All_Domain_Plotter:
         ax.axvline(x=60, color='green', linestyle='--', alpha=0.5, linewidth=1, label='5 years')
         
         # Formatting
-        ax.set_title('Dataset Age Distribution (All Cities)', fontsize=16, fontweight='bold', pad=20)
+        ax.set_title(f'{data.capitalize()} Age Distribution ({domain if domain else "All Cities"})', fontsize=16, fontweight='bold', pad=20)
         ax.set_xlabel('Age in Months', fontsize=12, fontweight='bold')
         ax.set_ylabel('Number of Datasets', fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--')
@@ -433,17 +466,30 @@ class All_Domain_Plotter:
         # Add value labels for peaks
         max_idx = series.idxmax()
         max_val = series.max()
-        ax.annotate(f'Peak: {max_val:,} datasets\nat {max_idx} months',
-                    xy=(max_idx, max_val),
-                    xytext=(max_idx + 10, max_val + max_val * 0.1),
-                    arrowprops=dict(arrowstyle='->', color='red', lw=1.5),
-                    fontsize=10, fontweight='bold')
+
+        ax.set_ylim(top=series.max() * 1.25)
+
+        x_left, x_right = ax.get_xlim()
+
+        # If peak is on right 20% of graph, place label to LEFT instead of RIGHT
+        if max_idx > x_left + 0.8 * (x_right - x_left):
+            offset = (-40, 30)  # left and up
+        else:
+            offset = (40, 30)   # right and up
+
+        ax.annotate(
+            f'Peak: {max_val:,} datasets\nat {max_idx} months',
+            xy=(max_idx, max_val),
+            xytext=offset,
+            textcoords='offset points',
+            arrowprops=dict(arrowstyle='->', color='red', lw=1.5)
+        )
         
         plt.tight_layout()
         if save_name:
             self._ensure_plots()
             plt.savefig(self.plots / save_name, dpi=300, bbox_inches='tight')
-            print(f"Line chart for publication_age saved to {self.plots / save_name}")
+            print(f"Line chart for saved to {self.plots / save_name}")
         else:
             plt.show()
 
