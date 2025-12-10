@@ -9,3 +9,4 @@ __pycache__
 .ipynb_checkpoints
 .DS_Store
 nyc_join_graph.html
+nyc_joinability_pairs.csv
